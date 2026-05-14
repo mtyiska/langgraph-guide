@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Local Assistant</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: #0f0f0f; color: #e0e0e0; height: 100vh; display: flex; flex-direction: column; }
+
+  #header { padding: 12px 20px; background: #1a1a1a; border-bottom: 1px solid #2a2a2a; display: flex; align-items: center; gap: 12px; }
+  #header h1 { font-size: 16px; font-weight: 600; }
+  #status-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; flex-shrink: 0; }
+  #session-label { font-size: 11px; color: #555; margin-left: auto; }
+  #traces-link { font-size: 11px; color: #4299e1; text-decoration: none; margin-left: 12px; }
+  #traces-link:hover { text-decoration: underline; }
+
+  #messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+
+  .msg { max-width: 740px; line-height: 1.65; border-radius: 10px; padding: 10px 14px; font-size: 14px; white-space: pre-wrap; word-break: break-word; }
+  .msg.user      { align-self: flex-end; background: #1d4ed8; border-radius: 12px 12px 2px 12px; }
+  .msg.assistant { align-self: flex-start; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px 12px 12px 2px; }
+  .msg.system    { align-self: center; color: #555; font-size: 12px; font-style: italic; background: transparent; padding: 2px 0; }
+  .msg.degraded  { align-self: flex-start; background: #1c1800; border: 1px solid #554400; border-radius: 12px 12px 12px 2px; }
+
+  .msg-meta { margin-top: 6px; font-size: 11px; color: #555; display: flex; gap: 8px; flex-wrap: wrap; }
+  .source-chip { background: #2a2a2a; padding: 2px 7px; border-radius: 10px; }
+  .status-badge { padding: 1px 6px; border-radius: 10px; font-weight: 600; }
+  .badge-complete { color: #68d391; background: #1c4532; }
+  .badge-degraded { color: #f6ad55; background: #44337a; }
+  .badge-blocked  { color: #fc8181; background: #742a2a; }
+
+  #approval-banner { background: #1c1800; border: 1px solid #554400; margin: 0 20px 12px; padding: 14px 18px; border-radius: 8px; }
+  #approval-banner h3 { font-size: 13px; color: #fbbf24; margin-bottom: 8px; }
+  #approval-code { font-size: 12px; color: #ccc; font-family: monospace; white-space: pre-wrap; background: #111; padding: 8px; border-radius: 4px; margin-bottom: 10px; }
+  #approval-actions { display: flex; gap: 8px; }
+  #approval-actions button { padding: 6px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; }
+  #approve-btn { background: #16a34a; color: #fff; }
+  #reject-btn  { background: #dc2626; color: #fff; }
+
+  #tasks-panel { background: #111; border-top: 1px solid #2a2a2a; padding: 10px 20px; max-height: 160px; overflow-y: auto; display: none; }
+  #tasks-panel h4 { font-size: 12px; color: #718096; margin-bottom: 6px; }
+  .task-row { font-size: 12px; padding: 3px 0; border-bottom: 1px solid #1a1a1a; color: #ccc; }
+
+  #input-area { padding: 14px 20px; background: #1a1a1a; border-top: 1px solid #2a2a2a; display: flex; gap: 10px; align-items: flex-end; }
+  #msg-input { flex: 1; background: #0f0f0f; border: 1px solid #2a2a2a; border-radius: 8px; padding: 10px 14px; color: #e0e0e0; font-size: 14px; resize: none; min-height: 44px; max-height: 140px; outline: none; font-family: inherit; }
+  #msg-input:focus { border-color: #1d4ed8; }
+  #send-btn { background: #1d4ed8; color: #fff; border: none; border-radius: 8px; padding: 0 18px; height: 44px; cursor: pointer; font-size: 14px; white-space: nowrap; }
+  #send-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  #tasks-btn { background: #2a2a2a; color: #aaa; border: none; border-radius: 8px; padding: 0 12px; height: 44px; cursor: pointer; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div id="status-dot"></div>
+  <h1>Local Assistant</h1>
+  <span id="session-label">Starting...</span>
+  <a id="traces-link" href="http://localhost:8001" target="_blank">Traces ↗</a>
+</div>
+
+<div id="messages"></div>
+
+<div id="approval-banner" style="display:none">
+  <h3>⚠ Approval Required</h3>
+  <div id="approval-code"></div>
+  <div id="approval-actions">
+    <button id="approve-btn" onclick="handleApproval(true)">✓ Approve</button>
+    <button id="reject-btn"  onclick="handleApproval(false)">✗ Reject</button>
+  </div>
+</div>
+
+<div id="tasks-panel">
+  <h4>PENDING TASKS</h4>
+  <div id="tasks-list"></div>
+</div>
+
+<div id="input-area">
+  <textarea id="msg-input" placeholder="Ask anything…" rows="1"></textarea>
+  <button id="tasks-btn" onclick="toggleTasks()" title="View tasks">☑</button>
+  <button id="send-btn"  onclick="sendMessage()">Send</button>
+</div>
+
+<script>
+let sessionId    = null;
+let pendingApproval = null;
+let tasksVisible = false;
+
+async function sendMessage() {
+  const input = document.getElementById("msg-input");
+  const text  = input.value.trim();
+  if (!text) return;
+  input.value  = "";
+  input.style.height = "44px";
+  appendMsg("user", text);
+  setLoading(true);
+
+  try {
+    const res  = await fetch("/chat", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ message: text, session_id: sessionId }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Server error");
+
+    sessionId = data.session_id;
+    document.getElementById("session-label").textContent = `Session: ${sessionId}`;
+
+    appendMsg("assistant", data.response, data.sources, data.status);
+
+    if (data.pending_approval) showApproval(data.pending_approval);
+  } catch (e) {
+    appendMsg("system", `Error: ${e.message}`);
+  } finally {
+    setLoading(false);
+  }
+}
+
+async function handleApproval(approved) {
+  hideApproval();
+  setLoading(true);
+  try {
+    const res  = await fetch("/approve", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ session_id: sessionId, approved }),
+    });
+    const data = await res.json();
+    appendMsg("assistant", data.response, [], data.status);
+    if (tasksVisible) loadTasks();
+  } catch (e) {
+    appendMsg("system", `Approval error: ${e.message}`);
+  } finally {
+    setLoading(false);
+  }
+}
+
+async function toggleTasks() {
+  const panel = document.getElementById("tasks-panel");
+  tasksVisible = !tasksVisible;
+  panel.style.display = tasksVisible ? "block" : "none";
+  if (tasksVisible) loadTasks();
+}
+
+async function loadTasks() {
+  if (!sessionId) return;
+  try {
+    const res  = await fetch(`/sessions/${sessionId}/tasks`);
+    const data = await res.json();
+    const list = document.getElementById("tasks-list");
+    const result = typeof data.result === "string" ? data.result : JSON.stringify(data);
+    list.innerHTML = result.split("\n").map(l =>
+      `<div class="task-row">${esc(l)}</div>`
+    ).join("") || "<div class='task-row' style='color:#555'>No tasks.</div>";
+  } catch (e) {
+    document.getElementById("tasks-list").innerHTML = `<div class='task-row' style='color:#fc8181'>Error loading tasks</div>`;
+  }
+}
+
+function appendMsg(role, content, sources, status) {
+  const div = document.createElement("div");
+  div.className = "msg " + (status === "degraded" ? "degraded" : role);
+  div.textContent = content;
+
+  if (sources && sources.length || status) {
+    const meta = document.createElement("div");
+    meta.className = "msg-meta";
+    if (status && status !== "complete") {
+      const badge = document.createElement("span");
+      badge.className = `status-badge badge-${status}`;
+      badge.textContent = status;
+      meta.appendChild(badge);
+    }
+    (sources || []).forEach(s => {
+      const chip = document.createElement("span");
+      chip.className = "source-chip";
+      chip.textContent = s.split("/").pop();
+      meta.appendChild(chip);
+    });
+    div.appendChild(meta);
+  }
+
+  document.getElementById("messages").appendChild(div);
+  div.scrollIntoView({ behavior: "smooth" });
+}
+
+function showApproval(operation) {
+  pendingApproval = operation;
+  document.getElementById("approval-code").textContent = JSON.stringify(operation, null, 2);
+  document.getElementById("approval-banner").style.display = "block";
+}
+
+function hideApproval() {
+  document.getElementById("approval-banner").style.display = "none";
+  pendingApproval = null;
+}
+
+function setLoading(on) {
+  document.getElementById("send-btn").disabled = on;
+  if (on) {
+    const t = document.createElement("div");
+    t.className = "msg system";
+    t.id        = "thinking-indicator";
+    t.textContent = "Thinking…";
+    document.getElementById("messages").appendChild(t);
+    t.scrollIntoView({ behavior: "smooth" });
+  } else {
+    const t = document.getElementById("thinking-indicator");
+    if (t) t.remove();
+  }
+}
+
+function esc(s) {
+  return String(s)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;")
+    .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+document.getElementById("msg-input").addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+document.getElementById("msg-input").addEventListener("input", function() {
+  this.style.height = "44px";
+  this.style.height = Math.min(this.scrollHeight, 140) + "px";
+});
+
+appendMsg("system", "Local Assistant ready. Type a message to start.");
+</script>
+</body>
+</html>
