@@ -33,8 +33,10 @@ EXPECTED FACTS (each must be present):
 FORBIDDEN CLAIMS (hallucinations to detect):
 {forbidden_claims}
 
-For each expected fact, find the specific sentence/phrase from the answer that
-supports it. If none exists, mark as missing.
+For each expected fact, find any sentence or phrase in the answer that confirms
+the same information, even if worded differently. If the answer conveys the same
+meaning as the expected fact, mark as found. Only mark missing if the information
+is genuinely absent from the answer.
 
 Respond with exactly this JSON:
 {{

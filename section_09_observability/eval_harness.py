@@ -9,19 +9,13 @@ import argparse
 import logging
 
 sys.path.append("..")
-sys.path.append(os.path.join(os.path.dirname(__file__), "..", "section_08_reliability"))
-
-from eval_cases import EVAL_CASES, create_knowledge_base, KB_DIR
+from eval_cases import EVAL_CASES, create_knowledge_base
 from trace_store import TraceStore
 from eval_store import EvalStore
 from golden_trajectories import GoldenTrajectoryStore
 from eval_runner import EvaluationRunner
 
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
-
-# Point section 8 tools at our knowledge base
-import tools as tools_mod
-tools_mod.DOCS_DIR = KB_DIR
 
 
 def main():

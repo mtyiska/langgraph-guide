@@ -12,7 +12,8 @@ from fastapi.responses import HTMLResponse
 from trace_store import TraceStore
 
 app = FastAPI(title="LangGraph Trace Viewer")
-store = TraceStore(db_path="./data/traces.db")
+_HERE = os.path.dirname(os.path.abspath(__file__))
+store = TraceStore(db_path=os.path.join(_HERE, "data", "traces.db"))
 
 
 @app.get("/api/runs")

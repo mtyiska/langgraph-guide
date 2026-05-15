@@ -1,21 +1,44 @@
 import sys
-sys.path.append("../..")
+sys.path.append("..")
 
 import os
 import chromadb
-from chromadb.utils.embedding_functions import create_langchain_embedding
-from langchain_ollama import OllamaEmbeddings, ChatOllama
+
+from langchain_ollama import  ChatOllama
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
 from config import EMBEDDING_MODEL, PRIMARY_MODEL, OLLAMA_BASE_URL
-
+from chromadb.api.types import EmbeddingFunction
+import requests
 DOCS_DIR = os.path.join(os.path.dirname(__file__), "..", "docs")
 
-embedding_fn = create_langchain_embedding(
-    OllamaEmbeddings(model=EMBEDDING_MODEL, base_url=OLLAMA_BASE_URL)
-)
+class OllamaEmbeddingFunction(EmbeddingFunction):
+    def __init__(self):
+        pass
+
+    
+    def __call__(self, input: list[str]) -> list[list[float]]:
+        embeddings = []
+        for text in input:
+            resp = requests.post(
+                f"{OLLAMA_BASE_URL}/api/embeddings",
+                json={"model": EMBEDDING_MODEL, "prompt": text},
+                timeout=30,
+            )
+            embeddings.append(resp.json()["embedding"])
+        return embeddings
+
+embedding_fn = OllamaEmbeddingFunction()
+
+
+
+
 client = chromadb.EphemeralClient()
-collection = client.get_or_create_collection("retrieval_quality", embedding_function=embedding_fn)
+collection = client.get_or_create_collection(
+    name="retrieval_quality",
+    embedding_function=embedding_fn,
+    metadata={"hnsw:space": "cosine"}  # add this
+)
 
 def ingest_docs():
     header_splitter = MarkdownHeaderTextSplitter(

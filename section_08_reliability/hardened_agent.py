@@ -24,13 +24,15 @@ def run_query(query: str, max_iterations: int = 12, verbose: bool = False) -> di
     console.print(f"\n[bold]Query:[/bold] {query}")
     console.print("[yellow]Running hardened agent...[/yellow]\n")
 
-    for step in graph.stream(initial, stream_mode="updates"):
-        node_name = list(step.keys())[0]
-        if verbose:
+    # Stream only for verbose output display
+    if verbose:
+        for step in graph.stream(initial, stream_mode="updates"):
+            node_name = list(step.keys())[0]
             console.print(f"  [dim]→ {node_name}[/dim]")
 
-    result = graph.invoke(initial)
-    return result
+    # Get the complete final state
+    final_state = graph.invoke(initial)
+    return final_state
 
 
 def print_result(result: dict):

@@ -1,5 +1,8 @@
 from pathlib import Path
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 BASE_DIR = Path(__file__).parent
 DATA_DIR = BASE_DIR / "data"
@@ -15,16 +18,16 @@ TRACES_DB       = str(DATA_DIR / "traces.db")
 TASKS_DB        = str(DATA_DIR / "tasks.db")
 MEMORY_DB       = str(DATA_DIR / "memory.db")
 
-PRIMARY_MODEL   = os.getenv("PRIMARY_MODEL",   "llama3.1:8b")
-FAST_MODEL      = os.getenv("FAST_MODEL",      "llama3.2:3b")
+PRIMARY_MODEL   = os.getenv("PRIMARY_MODEL",   "qwen2.5:7b")
+FAST_MODEL      = os.getenv("FAST_MODEL",      "qwen2.5:7b")
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
 
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 
 MAX_ITERATIONS             = int(os.getenv("MAX_ITERATIONS", "15"))
 MAX_RETRIEVAL_STEPS        = int(os.getenv("MAX_RETRIEVAL_STEPS", "4"))
-MAX_CONTEXT_TOKENS         = int(os.getenv("MAX_CONTEXT_TOKENS", "6000"))
-CONTEXT_WARNING_THRESHOLD  = 0.8
+MAX_CONTEXT_TOKENS         = int(os.getenv("MAX_CONTEXT_TOKENS", "8192"))
+CONTEXT_WARNING_THRESHOLD  = float(os.getenv("CONTEXT_WARNING_THRESHOLD", "0.75"))
 
 MAX_MEMORY_ITEMS                 = int(os.getenv("MAX_MEMORY_ITEMS", "10"))
 CONVERSATION_SUMMARY_THRESHOLD   = int(os.getenv("CONVERSATION_SUMMARY_THRESHOLD", "8"))

@@ -103,7 +103,7 @@ def _build_placeholder_tools():
 def run_pipeline(request: str, stream: bool = False, parallel: bool = False) -> dict:
     graph = build_pipeline(parallel=parallel)
 
-    initial_state = make_initial_state(request, max_iterations=12)
+    initial_state = make_initial_state(request, max_iterations=4)
 
     console.print(f"\n[bold blue]Pipeline starting[/bold blue]")
     console.print(f"Request: {request}\n")

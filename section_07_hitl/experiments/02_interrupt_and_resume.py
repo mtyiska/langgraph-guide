@@ -77,7 +77,7 @@ def run_scenario(label: str, decision_updates: dict, thread_suffix: str):
         assert "execute_action" in state.next, "Should be paused before execute_action"
 
         # Inject human decision
-        graph.update_state(config, decision_updates, as_node="human_review")
+        graph.update_state(config, decision_updates, as_node="propose_action")
 
         # Resume
         result = graph.invoke(None, config)

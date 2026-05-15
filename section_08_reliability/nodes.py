@@ -42,16 +42,27 @@ On error, read the "recoverable" field:
 Never retry the exact same call that returned an error.
 
 OUTPUT FORMAT:
-When you have enough information, respond with a JSON object:
+When you have enough information, respond with ONLY a JSON object (no other text):
 {
-  "answer": "your complete answer here",
+  "answer": "Your complete answer here — be descriptive, at least 30 words.",
   "confidence": "high" | "medium" | "low",
   "citations": [
-    {"source_path": "filename.md", "excerpt": "relevant text", "relevance": "why cited"}
+    {
+      "source_path": "budget_summary.md",
+      "excerpt": "Total Approved Budget: $180,000",
+      "relevance": "This document contains the exact budget amount for Project Orion"
+    }
   ],
-  "gaps": ["what you couldn't find"],
-  "answer_complete": true | false
+  "gaps": [],
+  "answer_complete": true
 }
+
+CRITICAL RULES:
+- If confidence is "high", you MUST include at least one citation
+- If confidence is "medium" or "low", citations are optional but recommended
+- Always include the source_path (just the filename, e.g., "budget_summary.md")
+- Always include a direct excerpt from that source
+- Make your answer detailed and at least 30 words long
 """)
 
 
@@ -107,7 +118,7 @@ def _detect_repeated_tool_calls(state: ResearchState) -> bool:
 def route_after_limit_check(state: ResearchState) -> str:
     if state.get("loop_detected"):
         return "graceful_degradation"
-    return "agent"
+    return "tools"  
 
 
 # ── Agent node ─────────────────────────────────────────────────────────────────

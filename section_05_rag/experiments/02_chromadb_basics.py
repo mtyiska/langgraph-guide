@@ -1,14 +1,27 @@
 import sys
-sys.path.append("../..")
+sys.path.append("..")
 
 import chromadb
-from chromadb.utils.embedding_functions import create_langchain_embedding
-from langchain_ollama import OllamaEmbeddings
+
+from chromadb.api.types import EmbeddingFunction
+import requests
+
+class OllamaEmbeddingFunction(EmbeddingFunction):
+    def __call__(self, input: list[str]) -> list[list[float]]:
+        embeddings = []
+        for text in input:
+            resp = requests.post(
+                f"{OLLAMA_BASE_URL}/api/embeddings",
+                json={"model": EMBEDDING_MODEL, "prompt": text},
+                timeout=30,
+            )
+            embeddings.append(resp.json()["embedding"])
+        return embeddings
+
+embedding_fn = OllamaEmbeddingFunction()
 from config import EMBEDDING_MODEL, OLLAMA_BASE_URL
 
-embedding_fn = create_langchain_embedding(
-    OllamaEmbeddings(model=EMBEDDING_MODEL, base_url=OLLAMA_BASE_URL)
-)
+
 
 client = chromadb.EphemeralClient()
 

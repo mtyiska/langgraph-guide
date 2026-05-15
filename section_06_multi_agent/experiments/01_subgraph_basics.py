@@ -61,12 +61,14 @@ parent_graph.get_graph(xray=True).print_ascii()
 
 print("\n=== Execution with stream_mode='updates' ===")
 initial = {"items": [], "status": "pending", "result": None}
+final_result = None
 for step in parent_graph.stream(initial, stream_mode="updates"):
     node_name = list(step.keys())[0]
     updates = step[node_name]
     print(f"  [{node_name}] changed: {updates}")
 
-result = parent_graph.invoke(initial)
+# invoke separately with a fresh initial state — don't reuse after stream
+result = parent_graph.invoke({"items": [], "status": "pending", "result": None})
 print(f"\nFinal items: {result['items']}")
 print(f"Final status: {result['status']}")
 print(f"Final result: {result['result']}")

@@ -1,5 +1,5 @@
 import sys
-sys.path.append("../..")
+sys.path.append("..")
 
 import os
 from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter

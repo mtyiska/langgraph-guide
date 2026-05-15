@@ -1,5 +1,6 @@
 import sys
 import os
+sys.path.append("..")
 import time
 import uuid
 import logging
@@ -7,10 +8,7 @@ from datetime import datetime
 from dataclasses import dataclass, field
 from typing import Optional
 
-sys.path.append("..")
-sys.path.append(os.path.join(os.path.dirname(__file__), "..", "section_08_reliability"))
 
-from langchain_core.messages import HumanMessage, SystemMessage
 
 from trace_store import TraceStore
 from eval_store import EvalStore
@@ -21,7 +19,6 @@ from scoring import (
     score_completeness,
     score_trajectory,
 )
-from instrumentation import traced_node
 
 logger = logging.getLogger(__name__)
 
@@ -212,6 +209,7 @@ class EvaluationRunner:
 
         duration_ms = (time.perf_counter() - t0) * 1000
         answer = final_state.get("final_answer", "")
+        print(f"\n  DEBUG ANSWER: {answer[:300]}")  # add this line
         validated = final_state.get("validated_answer") or {}
         citations = validated.get("citations", [])
         actual_trajectory = final_state.get("status", "")  # fallback

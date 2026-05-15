@@ -2,6 +2,7 @@ import uuid
 import logging
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.sqlite import SqliteSaver
+import sqlite3
 
 from agent.state import AssistantState
 from agent.nodes.guardrail     import input_guardrail_node, route_after_guardrail
@@ -90,7 +91,9 @@ def build_graph(trace_store: TraceStore | None = None) -> tuple:
     builder.add_edge("deliver_answer",       "memory_save")
     builder.add_edge("memory_save",          END)
 
-    checkpointer = SqliteSaver.from_conn_string(CHECKPOINTS_DB)
+    
+    conn = sqlite3.connect(CHECKPOINTS_DB, check_same_thread=False)
+    checkpointer = SqliteSaver(conn)
     graph = builder.compile(checkpointer=checkpointer)
 
     return graph, run_context

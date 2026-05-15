@@ -21,15 +21,17 @@ class PatternAState(TypedDict):
     status: str
 
 
-def pattern_a_supervisor_1(state: PatternAState) -> dict:
-    return {"status": "researching"}
+def pattern_a_supervisor(state: PatternAState) -> dict:
+    if state.get("research") is None:
+        return {"status": "researching"}
+    return {"status": "writing"}
+
 
 def pattern_a_researcher(state: PatternAState) -> dict:
     time.sleep(0.01)
     return {"research": FAKE_RESEARCH, "worker_results": ["researcher_done"]}
 
-def pattern_a_supervisor_2(state: PatternAState) -> dict:
-    return {"status": "writing"}
+
 
 def pattern_a_writer(state: PatternAState) -> dict:
     # Writer reads research directly from shared state
@@ -46,7 +48,7 @@ def route_a(state: PatternAState) -> str:
 
 
 a_builder = StateGraph(PatternAState)
-a_builder.add_node("supervisor", pattern_a_supervisor_1)
+a_builder.add_node("supervisor", pattern_a_supervisor)  # single supervisor
 a_builder.add_node("researcher", pattern_a_researcher)
 a_builder.add_node("writer", pattern_a_writer)
 a_builder.add_edge(START, "supervisor")
@@ -166,7 +168,13 @@ graph_c = c_builder.compile()
 # ── Run and compare ───────────────────────────────────────────────────────────
 
 print("=== Pattern A — Shared State ===")
-result_a = graph_a.invoke({"request": "Write about Project Atlas", "research": None, "draft": None, "worker_results": [], "status": "researching"})
+result_a = graph_a.invoke({
+    "request": "Write about Project Atlas",
+    "research": None,
+    "draft": None,
+    "worker_results": [],
+    "status": "pending",
+})
 print(f"  Draft produced: {bool(result_a.get('draft'))}")
 print(f"  Research visible to writer: YES (direct shared state read)")
 print(f"  Coupling: HIGH — writer knows research field name directly")

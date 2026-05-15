@@ -4,8 +4,8 @@ sys.path.append("..")
 import os
 import hashlib
 import chromadb
-from chromadb.utils.embedding_functions import create_langchain_embedding
-from langchain_ollama import OllamaEmbeddings
+import requests
+from chromadb.api.types import EmbeddingFunction
 from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
 from rich.progress import track
 from config import EMBEDDING_MODEL, OLLAMA_BASE_URL
@@ -14,10 +14,24 @@ CHROMA_PATH = os.path.join(os.path.dirname(__file__), "chroma_db")
 DOCS_DIR = os.path.join(os.path.dirname(__file__), "docs")
 
 
+class OllamaEmbeddingFunction(EmbeddingFunction):
+    def __init__(self):
+        pass
+
+    def __call__(self, input: list[str]) -> list[list[float]]:
+        embeddings = []
+        for text in input:
+            resp = requests.post(
+                f"{OLLAMA_BASE_URL}/api/embeddings",
+                json={"model": EMBEDDING_MODEL, "prompt": text},
+                timeout=30,
+            )
+            embeddings.append(resp.json()["embedding"])
+        return embeddings
+
+
 def get_embedding_fn():
-    return create_langchain_embedding(
-        OllamaEmbeddings(model=EMBEDDING_MODEL, base_url=OLLAMA_BASE_URL)
-    )
+    return OllamaEmbeddingFunction()
 
 
 def get_client():
@@ -31,7 +45,8 @@ def get_collection(client=None, embedding_fn=None):
         embedding_fn = get_embedding_fn()
     return client.get_or_create_collection(
         name="documents",
-        embedding_function=embedding_fn
+        embedding_function=embedding_fn,
+        metadata={"hnsw:space": "cosine"},
     )
 
 
