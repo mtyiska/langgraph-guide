@@ -18,6 +18,7 @@ class SharedState(TypedDict):
     status: str  # "running", "complete", "failed"
     iteration_count: int
     max_iterations: int
+    max_retrievals: int  
 
 
 class ResearcherState(SharedState):
@@ -46,6 +47,7 @@ def make_initial_state(request: str, max_iterations: int = 10) -> SharedState:
         "status": "running",
         "iteration_count": 0,
         "max_iterations": max_iterations,
+        "max_retrievals": 5,  # add this
     }
 
 

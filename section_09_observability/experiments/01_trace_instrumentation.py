@@ -7,11 +7,12 @@ then prints token/latency analysis from the trace DB.
 import sys
 import os
 import sqlite3
-import json
+import uuid
 import time
+from datetime import datetime
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "section_08_reliability"))
+sys.path.append(os.path.join(os.path.dirname(__file__), "../.."))
 
 from eval_cases import create_knowledge_base, KB_DIR
 import tools as tools_mod
@@ -19,12 +20,15 @@ tools_mod.DOCS_DIR = KB_DIR
 create_knowledge_base()
 
 from trace_store import TraceStore
-from instrumentation import traced_node
-from graph import build_graph, make_initial_state
+from trace_schema import RunTrace
+from graph import make_initial_state, build_traced_graph
 
 print("=== Experiment 1 — Trace Instrumentation ===\n")
 
-trace_store = TraceStore("../data/traces.db")
+_HERE = os.path.dirname(os.path.abspath(__file__))
+trace_store = TraceStore(os.path.join(_HERE, "..", "data", "traces.db"))
+
+# trace_store = TraceStore("../data/traces.db")
 
 QUERIES = [
     "What is the total budget for Project Atlas?",
@@ -34,9 +38,33 @@ QUERIES = [
 
 for q in QUERIES:
     print(f"Running: {q[:60]}")
-    graph = build_graph()
+    run_context = {
+        "run_id": str(uuid.uuid4()),
+        "thread_id": "exp1",
+        "node_index": 0,
+        "trajectory": [],
+        "total_tokens": 0,
+    }
+    t0 = time.perf_counter()
+    graph = build_traced_graph(trace_store, run_context)
     initial = make_initial_state(q, max_iterations=8)
     result = graph.invoke(initial)
+    duration_ms = (time.perf_counter() - t0) * 1000
+
+    run_trace = RunTrace(
+        run_id=run_context["run_id"],
+        thread_id="exp1",
+        user_query=q,
+        trajectory=run_context["trajectory"],
+        total_tokens=run_context.get("total_tokens", 0),
+        final_status=result.get("status", "complete"),
+        output_valid=True,
+        final_answer_preview=result.get("final_answer", "")[:500],
+        duration_ms=duration_ms,
+    )
+    run_trace.end_time = datetime.utcnow()
+    trace_store.save_run_trace(run_trace)
+
     print(f"  Status: {result.get('status')} | Answer: {str(result.get('final_answer',''))[:60]}\n")
 
 # ── Analyse traces from DB ─────────────────────────────────────────────────────
@@ -64,7 +92,11 @@ for r in rows:
 print("\nQ1: Which node uses the most tokens?")
 if rows:
     by_tok = sorted(rows, key=lambda r: r[4] or 0, reverse=True)
-    print(f"    → {by_tok[0][0]} (avg {by_tok[0][4]:.0f} tokens)")
+    tok_val = by_tok[0][4]
+    if tok_val:
+        print(f"    → {by_tok[0][0]} (avg {tok_val:.0f} tokens)")
+    else:
+        print("    → No token data captured")
 
 print("\nQ2: Which node takes the longest wall-clock time?")
 if rows:
@@ -86,6 +118,8 @@ if len(paired) >= 4:
     corr = num / (den_t * den_d) if den_t and den_d else 0
     print(f"    Pearson r = {corr:.2f}")
     print(f"    (1.0 = perfect linear, typically 0.5-0.8 — network+inference vary independently)")
+else:
+    print(f"    → Not enough token data ({len(paired)} samples)")
 
 conn.close()
 print("\nExperiment 1 complete.")

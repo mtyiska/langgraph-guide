@@ -61,12 +61,12 @@ with SqliteSaver.from_conn_string(DB_PATH) as checkpointer:
     print("\n=== Querying SQLite checkpoints directly ===")
     conn = sqlite3.connect(DB_PATH)
     rows = conn.execute(
-        "SELECT thread_id, checkpoint_id, parent_checkpoint_id, ts FROM checkpoints WHERE thread_id = ? ORDER BY ts",
+        "SELECT thread_id, checkpoint_id, parent_checkpoint_id FROM checkpoints WHERE thread_id = ?",
         (THREAD_ID,)
     ).fetchall()
     print(f"Total checkpoints for thread '{THREAD_ID}': {len(rows)}")
     for i, row in enumerate(rows):
-        print(f"  [{i}] checkpoint_id={row[1][:12]}... parent={str(row[2])[:12]}... ts={row[3]}")
+        print(f"  [{i}] checkpoint_id={row[1][:12]}... parent={str(row[2])[:12]}...")
     conn.close()
 
     print("\n=== State at each checkpoint ===")
@@ -80,7 +80,6 @@ with SqliteSaver.from_conn_string(DB_PATH) as checkpointer:
               f"messages={vals.get('messages')} | outputs={vals.get('step_outputs')}")
 
     print("\n=== Patching node_c output via update_state and re-running ===")
-    # Find the checkpoint after node_b (before node_c ran)
     target = None
     for snapshot in history:
         if snapshot.values.get("status") == "after_b":
@@ -88,16 +87,25 @@ with SqliteSaver.from_conn_string(DB_PATH) as checkpointer:
             break
 
     if target:
-        fork_checkpoint_id = target.config["configurable"]["checkpoint_id"]
-        fork_config = {"configurable": {"thread_id": THREAD_ID + "-fork", "checkpoint_id": fork_checkpoint_id}}
+        fork_thread = THREAD_ID + "-fork"
+        fork_config = {"configurable": {"thread_id": fork_thread}}
 
-        # update state at the fork point
-        graph.update_state(
-            {"configurable": {"thread_id": THREAD_ID + "-fork"}},
-            {"step_outputs": ["patched_before_c"], "status": "after_b"},
-        )
-        # Resume
-        fork_result = graph.invoke(None, {"configurable": {"thread_id": THREAD_ID + "-fork"}})
+        # Copy the full state from the target snapshot into the fork thread
+        # then apply the patch on top
+        patched_state = {
+            **target.values,
+            "step_outputs": ["patched_before_c"],  # reset — not add
+            "status": "after_b",
+        }
+
+        graph.update_state(fork_config, patched_state, as_node="node_b")
+
+        # Verify fork state before resume
+        fork_state = graph.get_state(fork_config)
+        print(f"  Fork state before resume: step_outputs={fork_state.values.get('step_outputs')}, status={fork_state.values.get('status')}")
+        print(f"  Fork next nodes: {fork_state.next}")
+
+        fork_result = graph.invoke(None, fork_config)
         print(f"  Forked result — step_outputs: {fork_result['step_outputs']}")
         print(f"  node_c ran once on patched state, not re-running node_a or node_b")
     else:

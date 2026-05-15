@@ -12,7 +12,17 @@ def truncate_state(state: dict, max_str_len: int = 300) -> dict:
     """Truncate long string values so state snapshots don't bloat the DB."""
     result = {}
     for k, v in state.items():
-        if isinstance(v, str) and len(v) > max_str_len:
+        if isinstance(v, list) and v and hasattr(v[0], 'content'):
+            serialized = []
+            for msg in v[:10]:
+                serialized.append({
+                    "type": type(msg).__name__,
+                    "content": str(getattr(msg, 'content', ''))[:max_str_len]
+                })
+            if len(v) > 10:
+                serialized.append(f"... [{len(v)} items total]")
+            result[k] = serialized
+        elif isinstance(v, str) and len(v) > max_str_len:
             result[k] = v[:max_str_len] + f"... [{len(v)} chars total]"
         elif isinstance(v, list) and len(v) > 10:
             result[k] = v[:10] + [f"... [{len(v)} items total]"]

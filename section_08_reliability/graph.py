@@ -17,15 +17,14 @@ from nodes import (
     injection_screen_node,
     route_after_injection_screen,
     deliver_answer_node,
+    RESEARCH_SYSTEM,
 )
 from degradation import graceful_degradation_node
-from injection_defence import RESEARCH_SYSTEM
 
 
 def build_graph():
     tool_registry = {t.name: t for t in ALL_TOOLS}
 
-    # Bind tool_registry into closures
     def _agent_node(state):
         return agent_node(state, ALL_TOOLS)
 
@@ -43,34 +42,57 @@ def build_graph():
     builder.add_node("deliver_answer", deliver_answer_node)
     builder.add_node("graceful_degradation", graceful_degradation_node)
 
-    # Edges
+    # Graph edges
     builder.add_edge(START, "input_guardrail")
+    
     builder.add_conditional_edges(
         "input_guardrail",
         route_after_guardrail,
-        {"deliver_answer": "deliver_answer", "check_iteration_limit": "check_iteration_limit"},
+        {
+            "deliver_answer": "deliver_answer",
+            "check_iteration_limit": "check_iteration_limit"
+        },
     )
+    
     builder.add_conditional_edges(
         "check_iteration_limit",
         route_after_limit_check,
-        {"graceful_degradation": "graceful_degradation", "agent": "agent"},
+        {
+            "graceful_degradation": "graceful_degradation",
+            "agent": "agent",
+            "tools": "tools"
+        },
     )
+    
     builder.add_conditional_edges(
         "agent",
         route_after_agent,
-        {"check_iteration_limit": "check_iteration_limit", "validate_output": "validate_output"},
+        {
+            "check_iteration_limit": "check_iteration_limit",
+            "validate_output": "validate_output"
+        },
     )
+    
     builder.add_edge("tools", "agent")
+    
     builder.add_conditional_edges(
         "validate_output",
         route_after_validation,
-        {"graceful_degradation": "graceful_degradation", "injection_screen": "injection_screen"},
+        {
+            "graceful_degradation": "graceful_degradation",
+            "injection_screen": "injection_screen"
+        },
     )
+    
     builder.add_conditional_edges(
         "injection_screen",
         route_after_injection_screen,
-        {"graceful_degradation": "graceful_degradation", "deliver_answer": "deliver_answer"},
+        {
+            "graceful_degradation": "graceful_degradation",
+            "deliver_answer": "deliver_answer"
+        },
     )
+    
     builder.add_edge("graceful_degradation", "deliver_answer")
     builder.add_edge("deliver_answer", END)
 

@@ -58,10 +58,22 @@ def _truncate_state(state: dict, max_len: int = 300) -> dict:
     for k, v in state.items():
         if k.startswith("_"):
             continue
-        if isinstance(v, str) and len(v) > max_len:
+        # Handle LangChain message objects
+        if isinstance(v, list) and v and hasattr(v[0], 'content'):
+            serializable = []
+            for item in v:
+                if hasattr(item, 'content'):
+                    serializable.append({"type": item.__class__.__name__, "content": str(item.content)[:max_len]})
+                else:
+                    serializable.append(item)
+            if len(serializable) > 8:
+                result[k] = serializable[:8] + [f"... [{len(v)} items]"]
+            else:
+                result[k] = serializable
+        elif isinstance(v, str) and len(v) > max_len:
             result[k] = v[:max_len] + f"... [{len(v)} chars]"
-        elif isinstance(v, list) and len(v) > 8:
-            result[k] = v[:8] + [f"... [{len(v)} items]"]
+        elif hasattr(v, 'content'):  # single message object
+            result[k] = {"type": v.__class__.__name__, "content": str(v.content)[:max_len]}
         else:
             result[k] = v
     return result

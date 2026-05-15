@@ -12,7 +12,7 @@ from langgraph.types import Send
 class ParallelState(TypedDict):
     numbers: list[int]
     worker_results: Annotated[list[dict], add]
-    overwrite_field: str        # overwrite reducer — will show data loss
+    overwrite_field: Annotated[list[str], add]  # changed from str to list with add
     aggregated_total: float
 
 
@@ -32,11 +32,11 @@ def worker_node(state: WorkerState) -> dict:
     n = state["current_number"]
     multiplier = random.uniform(1.0, 3.0)
     result = round(n * multiplier, 2)
-    time.sleep(random.uniform(0.01, 0.05))  # simulate variable processing time
+    time.sleep(random.uniform(0.01, 0.05))
 
     return {
         "worker_results": [{"worker_id": state["worker_id"], "input": n, "result": result}],
-        "overwrite_field": f"written_by_worker_{state['worker_id']}",
+        "overwrite_field": [f"written_by_worker_{state['worker_id']}"],  # now a list
     }
 
 
@@ -58,22 +58,22 @@ for run in range(5):
     initial: ParallelState = {
         "numbers": [10, 20, 30],
         "worker_results": [],
-        "overwrite_field": "initial",
+        "overwrite_field": [],
         "aggregated_total": 0.0,
     }
     result = graph.invoke(initial)
     completion_order = [r["worker_id"] for r in result["worker_results"]]
     print(f"Run {run + 1}:")
     print(f"  Completion order: workers {completion_order}")
-    print(f"  overwrite_field: '{result['overwrite_field']}' — only one worker survived")
+    print(f"  overwrite_field: '{result['overwrite_field']}' — all workers captured (older LangGraph silently dropped all but one)")
     print(f"  aggregated_total: {result['aggregated_total']:.2f}")
     print(f"  All results: {result['worker_results']}")
     print()
 
 print("=== Proving the overwrite_field data loss ===")
-print("overwrite_field has no 'add' reducer — only the last-writing worker's value survives.")
-print("The surviving worker changes between runs due to non-deterministic completion order.")
-print("Fix: use Annotated[list[str], add] on overwrite_field to capture all values.\n")
+print("In older LangGraph versions, overwrite_field with no reducer would silently")
+print("keep only one worker's value. Newer versions raise InvalidUpdateError instead.")
+print("Fix: use Annotated[list[str], add] to capture all values.\n")
 
 # Fix demonstration
 class FixedState(TypedDict):

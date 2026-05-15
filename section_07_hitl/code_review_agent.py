@@ -16,11 +16,6 @@ os.makedirs(DATA_DIR, exist_ok=True)
 
 
 def run_review_loop(graph, config: dict, initial_input):
-    """
-    Drive the review loop: invoke the graph, handle each interrupt,
-    inject human decisions, and resume until the graph completes.
-    """
-    # First invocation (or resumption with None input)
     try:
         graph.invoke(initial_input, config)
     except Exception as e:
@@ -31,32 +26,27 @@ def run_review_loop(graph, config: dict, initial_input):
     while True:
         state = graph.get_state(config)
 
-        # Check if complete
         if not state.next:
             _print_final_summary(state.values)
             return
 
-        # We are paused before apply_or_skip — collect human decision
-        if "apply_or_skip" in state.next:
+        # ✅ Check for human_review, not apply_or_skip
+        if "human_review" in state.next:
             try:
                 decision: ReviewDecision = present_change_for_review(graph, config)
             except SystemExit:
-                # Human chose to quit — state already saved in SQLite
                 return
 
             if decision is None:
-                # No pending change — shouldn't happen, but resume anyway
                 graph.invoke(None, config)
                 continue
 
-            # Inject the human's decision into state
             graph.update_state(
                 config,
                 {"review_decisions": [decision]},
                 as_node="human_review",
             )
 
-            # Resume execution
             try:
                 graph.invoke(None, config)
             except Exception as e:
@@ -65,10 +55,8 @@ def run_review_loop(graph, config: dict, initial_input):
                 return
 
         else:
-            # Unexpected interrupt — resume anyway
             print(f"\n[INFO] Paused before: {state.next}. Resuming...")
             graph.invoke(None, config)
-
 
 def _print_final_summary(values: dict):
     total = len(values.get("proposed_changes", []))
@@ -118,48 +106,47 @@ def main():
     )
     args = parser.parse_args()
 
-    checkpointer = SqliteSaver.from_conn_string(CHECKPOINT_DB)
-    graph = build_graph(checkpointer)
+    with SqliteSaver.from_conn_string(CHECKPOINT_DB) as checkpointer:
+        graph = build_graph(checkpointer)
 
-    if args.list_sessions:
-        print_sessions(graph)
-        return
-
-    if args.history:
-        config = {"configurable": {"thread_id": args.history}}
-        print_state_history(graph, config)
-        return
-
-    # Determine session ID and whether this is a new or resumed session
-    if args.session:
-        session_id = args.session
-        config = {"configurable": {"thread_id": session_id}}
-        state = graph.get_state(config)
-
-        if not state.values:
-            print(f"Session '{session_id}' not found. Starting fresh.")
-            if not args.files:
-                parser.error("Provide at least one file to review.")
-            initial_input = _make_initial_state(args.files, session_id)
-        elif not state.next:
-            print(f"Session '{session_id}' is already complete.")
-            _print_final_summary(state.values)
+        if args.list_sessions:
+            print_sessions(graph)
             return
+
+        if args.history:
+            config = {"configurable": {"thread_id": args.history}}
+            print_state_history(graph, config)
+            return
+
+        if args.session:
+            session_id = args.session
+            config = {"configurable": {"thread_id": session_id}}
+            state = graph.get_state(config)
+
+            if not state.values:
+                print(f"Session '{session_id}' not found. Starting fresh.")
+                if not args.files:
+                    parser.error("Provide at least one file to review.")
+                initial_input = _make_initial_state(args.files, session_id)
+            elif not state.next:
+                print(f"Session '{session_id}' is already complete.")
+                _print_final_summary(state.values)
+                return
+            else:
+                print(f"\nResuming session: {session_id}")
+                print(f"Paused before: {state.next}")
+                initial_input = None
+
         else:
-            print(f"\nResuming session: {session_id}")
-            print(f"Paused before: {state.next}")
-            initial_input = None  # continue from checkpoint
+            if not args.files:
+                parser.error("Provide at least one file to review (or --session to resume).")
+            session_id = str(uuid.uuid4())[:8]
+            config = {"configurable": {"thread_id": session_id}}
+            initial_input = _make_initial_state(args.files, session_id)
+            print(f"\nNew session ID: {session_id}")
+            print(f"Resume later with: python code_review_agent.py --session {session_id} <files>")
 
-    else:
-        if not args.files:
-            parser.error("Provide at least one file to review (or --session to resume).")
-        session_id = str(uuid.uuid4())[:8]
-        config = {"configurable": {"thread_id": session_id}}
-        initial_input = _make_initial_state(args.files, session_id)
-        print(f"\nNew session ID: {session_id}")
-        print(f"Resume later with: python code_review_agent.py --session {session_id} <files>")
-
-    run_review_loop(graph, config, initial_input)
+        run_review_loop(graph, config, initial_input)
 
 
 def _make_initial_state(files: list[str], session_id: str) -> dict:

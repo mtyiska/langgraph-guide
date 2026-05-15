@@ -1,6 +1,8 @@
 import sys
 import os
-sys.path.append("../..")
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))      # section_06_multi_agent/
+sys.path.append(os.path.join(os.path.dirname(__file__), "../.."))   # langgraph_guide/
+
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from injection_defence import (

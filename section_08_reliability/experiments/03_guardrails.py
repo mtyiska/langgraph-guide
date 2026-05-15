@@ -1,6 +1,9 @@
 import sys
 import time
-sys.path.append("../..")
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))      # section_06_multi_agent/
+sys.path.append(os.path.join(os.path.dirname(__file__), "../.."))   # langgraph_guide/
+
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from guardrails import input_guardrail_node

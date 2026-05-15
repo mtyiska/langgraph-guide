@@ -13,7 +13,7 @@ os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 class FragileState(TypedDict):
     value: int
     history: list[str]
-    trigger_failure_at: int   # node index that will fail
+    trigger_failure_at: int
     status: str
     error: Optional[str]
 
@@ -44,14 +44,12 @@ for n in nodes:
 builder.add_edge(prev, END)
 
 THREAD_ID = "exp04-fragile"
-config = {"configurable": {"thread_id": THREAD_ID}}
 
 print("=== Experiment 4 — Time-Travel Debugging ===\n")
 
 with SqliteSaver.from_conn_string(DB_PATH) as checkpointer:
     graph = builder.compile(checkpointer=checkpointer)
 
-    # Run with failure at node index 2 ("enrich")
     initial = {
         "value": 3,
         "history": [],
@@ -76,8 +74,10 @@ with SqliteSaver.from_conn_string(DB_PATH) as checkpointer:
     for i, snap in enumerate(history):
         source = snap.metadata.get("source", "?")
         vals = snap.values
-        print(f"   [{i}] source={source:<12} value={vals.get('value'):<6} "
-              f"status={vals.get('status')} history={vals.get('history')}")
+        value = str(vals.get('value')) if vals.get('value') is not None else 'None'
+        status = str(vals.get('status')) if vals.get('status') is not None else 'None'
+        print(f"   [{i}] source={source:<12} value={value:<6} "
+              f"status={status} history={vals.get('history')}")
 
     # Find last good checkpoint (before the failure)
     last_good = None
@@ -88,35 +88,37 @@ with SqliteSaver.from_conn_string(DB_PATH) as checkpointer:
                 break
 
     if not last_good:
-        # Fall back to the checkpoint just before the failed node
         last_good = history[-2] if len(history) >= 2 else history[-1]
 
     last_good_checkpoint_id = last_good.config["configurable"]["checkpoint_id"]
     print(f"\n3. Last good checkpoint: source={last_good.metadata.get('source')} "
           f"value={last_good.values.get('value')}")
 
-    # Fork from that checkpoint into a new thread, fixing the failure condition
+    # Fork into new thread with patched state
     fork_thread = THREAD_ID + "-fork"
-    fork_config = {
-        "configurable": {
-            "thread_id": fork_thread,
-            "checkpoint_id": last_good_checkpoint_id,
-        }
-    }
+    fork_config = {"configurable": {"thread_id": fork_thread}}
 
-    # Patch the state so trigger_failure_at no longer hits
+    # Determine which node ran last from the history list in state
+    last_node_run = last_good.values.get("history", [])[-1].split(":")[0] if last_good.values.get("history") else "setup"
+
     graph.update_state(
-        {"configurable": {"thread_id": fork_thread}},
+        fork_config,
         {
             **last_good.values,
-            "trigger_failure_at": 99,  # never trigger
+            "trigger_failure_at": 99,
             "status": "running",
             "error": None,
         },
+        as_node=last_node_run,
     )
 
-    print(f"\n4. Forking from checkpoint, disabling failure condition...")
-    fork_result = graph.invoke(None, {"configurable": {"thread_id": fork_thread}})
+    # Verify fork state before resume
+    fork_state = graph.get_state(fork_config)
+    print(f"\n4. Fork state: value={fork_state.values.get('value')}, "
+          f"next={fork_state.next}")
+
+    print("   Forking from checkpoint, disabling failure condition...")
+    fork_result = graph.invoke(None, fork_config)
 
     print(f"\n5. Fork completed successfully!")
     print(f"   Final value : {fork_result['value']}")

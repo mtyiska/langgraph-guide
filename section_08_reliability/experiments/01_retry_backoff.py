@@ -1,7 +1,10 @@
 import sys
 import time
 import concurrent.futures
-sys.path.append("../..")
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))      # section_06_multi_agent/
+sys.path.append(os.path.join(os.path.dirname(__file__), "../.."))   # langgraph_guide/
+
 
 from retry import retry_with_backoff
 
@@ -90,13 +93,14 @@ print("Test 4: Jitter spreads retry timestamps across concurrent callers")
 
 call_timestamps = []
 
+call_counts = {}
+
 def concurrent_flaky(worker_id: int) -> str:
-    for attempt in range(3):
-        if attempt < 2:
-            time.sleep(0.01)
-            raise IOError(f"Worker {worker_id} attempt {attempt} failed")
-        call_timestamps.append((worker_id, time.perf_counter()))
-        return f"Worker {worker_id} succeeded"
+    call_counts[worker_id] = call_counts.get(worker_id, 0) + 1
+    if call_counts[worker_id] < 3:
+        raise IOError(f"Worker {worker_id} attempt {call_counts[worker_id]} failed")
+    call_timestamps.append((worker_id, time.perf_counter()))
+    return f"Worker {worker_id} succeeded"
 
 # Without jitter
 no_jitter_fn = retry_with_backoff(

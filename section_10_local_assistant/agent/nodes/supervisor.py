@@ -78,9 +78,9 @@ User message: {user_message}
 
     args = response.tool_calls[0]["args"]
     return {
-        "route":                  args["route"],
-        "intent":                 args["intent"],
-        "supervisor_instructions": args["instructions"],
+        "route":                  args.get("route", "direct_answer"),
+        "intent":                 args.get("intent", "unclear"),
+        "supervisor_instructions": args.get("instructions") or args.get("supervisor_instructions") or _get_last_user_message(state),
         "supervisor_rounds":      rounds + 1,
         "_llm_response":          response,
     }

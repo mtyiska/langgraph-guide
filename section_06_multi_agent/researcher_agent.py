@@ -54,7 +54,9 @@ def build_researcher_graph(tools: list):
         return {
             "messages": [system_msg, human_msg],
             "retrieval_count": 0,
+            "max_retrievals": 2,
             "iteration_count": 0,
+            "max_iterations": 4,
         }
 
     def check_budget_node(state: ResearcherInternalState) -> dict:

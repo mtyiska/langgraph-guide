@@ -1,5 +1,7 @@
 import sys
-sys.path.append("../..")
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))      # section_06_multi_agent/
+sys.path.append(os.path.join(os.path.dirname(__file__), "../.."))   # langgraph_guide/
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_ollama import ChatOllama
@@ -25,7 +27,15 @@ llm_with_tools = llm.bind_tools([route_to_worker])
 
 SUPERVISOR_PROMPT = """You coordinate a research and writing pipeline.
 You have two workers: researcher (finds facts) and writer (drafts content).
-Always call the route_to_worker tool. Never respond with plain text."""
+
+Routing rules — follow these exactly:
+- If no worker_results exist: route to researcher
+- If only researcher has run: route to writer
+- If both researcher and writer have run: route to FINISH
+- Never route to the same worker twice in one turn
+
+Always call the route_to_worker tool. Never respond with plain text.
+The 'worker' argument must be exactly one of: researcher, writer, FINISH"""
 
 
 def call_supervisor(state: SharedState) -> dict:
@@ -39,10 +49,9 @@ def call_supervisor(state: SharedState) -> dict:
         return {
             "worker": tc["args"].get("worker"),
             "task": tc["args"].get("task_description"),
-            "context": tc["args"].get("context_for_worker", "")[:200],
+            "context": str(tc["args"].get("context_for_worker", ""))[:200],
         }
     return {"worker": "researcher", "task": "fallback", "context": ""}
-
 
 test_states = [
     {

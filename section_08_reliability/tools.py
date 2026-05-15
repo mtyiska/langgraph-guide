@@ -13,7 +13,7 @@ from injection_defence import wrap_retrieved_content
 
 logger = logging.getLogger(__name__)
 
-DOCS_DIR = os.path.join(os.path.dirname(__file__), "..", "section_05_rag", "docs")
+DOCS_DIR = os.path.join(os.path.dirname(__file__), "test_docs")
 
 
 def _format_success(result: str, **metadata) -> str:
@@ -237,4 +237,5 @@ def calculate(expression: str) -> str:
         )
 
 
+# bottom of tools.py
 ALL_TOOLS = [list_available_documents, read_document, search_documents, calculate]
